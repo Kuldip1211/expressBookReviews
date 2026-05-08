@@ -7,13 +7,12 @@ let users = require("./auth_users.js").users;
 
 const public_users = express.Router();
 
+const BASE_URL = 'http://localhost:5000';
 
 // Register New User
 public_users.post("/register", (req, res) => {
-
   const { username, password } = req.body;
 
-  // Validate input
   if (!username || !password) {
     return res.status(400).json({
       success: false,
@@ -21,10 +20,7 @@ public_users.post("/register", (req, res) => {
     });
   }
 
-  // Check if user already exists
-  const userExists = users.find(
-    (user) => user.username === username
-  );
+  const userExists = users.find((user) => user.username === username);
 
   if (userExists) {
     return res.status(409).json({
@@ -33,11 +29,7 @@ public_users.post("/register", (req, res) => {
     });
   }
 
-  // Add user
-  users.push({
-    username,
-    password
-  });
+  users.push({ username, password });
 
   return res.status(201).json({
     success: true,
@@ -46,45 +38,45 @@ public_users.post("/register", (req, res) => {
 });
 
 
-// Get all books -- uses async/await
-public_users.get('/', async function (req, res) {
+// Task 1: Get all books -- using Promise callback
+public_users.get('/', function (req, res) {
 
-  try {
-
-    return res.status(200).json({
-      success: true,
-      books: books
+  new Promise((resolve, reject) => {
+    if (books) {
+      resolve(books);
+    } else {
+      reject(new Error("Books data not available"));
+    }
+  })
+    .then((allBooks) => {
+      return res.status(200).json({
+        success: true,
+        books: allBooks
+      });
+    })
+    .catch((error) => {
+      return res.status(500).json({
+        success: false,
+        message: "Failed to fetch books",
+        error: error.message
+      });
     });
-
-  } catch (error) {
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch books",
-      error: error.message
-    });
-
-  }
 
 });
 
 
-// Get book details based on ISBN -- uses Axios + async/await
+// Task 2: Get book details based on ISBN -- using Axios with async/await
 public_users.get('/isbn/:isbn', async function (req, res) {
 
   try {
-
     const isbn = req.params.isbn;
 
-    // Use Axios to fetch all books from the local server
-    const response = await axios.get('http://localhost:5000/');
-
-    const allBooks = response.data.books;
+    // Fetch all books via Axios
+    const response = await axios.get(`${BASE_URL}/`);
+    const allBooks = Object.values(response.data.books);
 
     // Find the book matching the given ISBN
-    const resultBook = Object.values(allBooks).find(
-      (book) => book.isbn === isbn
-    );
+    const resultBook = allBooks.find((book) => book.isbn === isbn);
 
     if (!resultBook) {
       return res.status(404).json({
@@ -99,8 +91,6 @@ public_users.get('/isbn/:isbn', async function (req, res) {
     });
 
   } catch (error) {
-
-    // Handle Axios-specific errors separately
     if (error.response) {
       return res.status(error.response.status).json({
         success: false,
@@ -108,160 +98,117 @@ public_users.get('/isbn/:isbn', async function (req, res) {
         error: error.response.data
       });
     }
-
     return res.status(500).json({
       success: false,
       message: "Error fetching book by ISBN",
       error: error.message
     });
-
   }
 
 });
 
 
-// Get book details based on author -- uses Axios + async/await
-public_users.get('/author/:author', async function (req, res) {
+// Task 3: Get book details based on author -- using Axios with Promise callback
+public_users.get('/author/:author', function (req, res) {
 
-  try {
+  const author = req.params.author.toLowerCase();
 
-    const author = req.params.author.toLowerCase();
+  // Fetch all books via Axios using Promise .then()/.catch()
+  axios.get(`${BASE_URL}/`)
+    .then((response) => {
+      const allBooks = Object.values(response.data.books);
 
-    // Use Axios to fetch all books from the local server
-    const response = await axios.get('http://localhost:5000/');
+      // Filter books where author name includes the search parameter
+      const filteredBooks = allBooks.filter(
+        (book) => book.author && book.author.toLowerCase().includes(author)
+      );
 
-    if (!response.data || !response.data.books) {
+      if (filteredBooks.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: `No books found for author: ${req.params.author}`
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        books: filteredBooks
+      });
+    })
+    .catch((error) => {
+      if (error.response) {
+        return res.status(error.response.status).json({
+          success: false,
+          message: "Error from upstream service",
+          error: error.response.data
+        });
+      }
       return res.status(500).json({
         success: false,
-        message: "Invalid response from book service"
+        message: "Error fetching books by author",
+        error: error.message
       });
-    }
-
-    const allBooks = Object.values(response.data.books);
-
-    // Filter books where author name contains the search parameter (case-insensitive)
-    const filteredBooks = allBooks.filter(
-      (book) =>
-        book.author &&
-        book.author.toLowerCase().includes(author)
-    );
-
-    if (filteredBooks.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: `No books found for author: ${req.params.author}`
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      books: filteredBooks
     });
-
-  } catch (error) {
-
-    // Handle Axios-specific errors separately
-    if (error.response) {
-      return res.status(error.response.status).json({
-        success: false,
-        message: "Error from upstream service",
-        error: error.response.data
-      });
-    }
-
-    return res.status(500).json({
-      success: false,
-      message: "Error fetching books by author",
-      error: error.message
-    });
-
-  }
 
 });
 
 
-// Get all books based on title -- uses Axios + async/await
-public_users.get('/title/:title', async function (req, res) {
+// Task 4: Get all books based on title -- using Axios with Promise callback
+public_users.get('/title/:title', function (req, res) {
 
-  try {
+  const title = req.params.title.toLowerCase();
 
-    const title = req.params.title.toLowerCase();
+  // Fetch all books via Axios using Promise .then()/.catch()
+  axios.get(`${BASE_URL}/`)
+    .then((response) => {
+      const allBooks = Object.values(response.data.books);
 
-    // Use Axios to fetch all books from the local server
-    const response = await axios.get('http://localhost:5000/');
+      // Filter books where title includes the search parameter
+      const filteredBooks = allBooks.filter(
+        (book) => book.title && book.title.toLowerCase().includes(title)
+      );
 
-    if (!response.data || !response.data.books) {
+      if (filteredBooks.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: `No books found with title: ${req.params.title}`
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        books: filteredBooks
+      });
+    })
+    .catch((error) => {
+      if (error.response) {
+        return res.status(error.response.status).json({
+          success: false,
+          message: "Error from upstream service",
+          error: error.response.data
+        });
+      }
       return res.status(500).json({
         success: false,
-        message: "Invalid response from book service"
+        message: "Error fetching books by title",
+        error: error.message
       });
-    }
-
-    const allBooks = Object.values(response.data.books);
-
-    // Filter books where title contains the search parameter (case-insensitive)
-    const filteredBooks = allBooks.filter(
-      (book) =>
-        book.title &&
-        book.title.toLowerCase().includes(title)
-    );
-
-    if (filteredBooks.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: `No books found with title: ${req.params.title}`
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      books: filteredBooks
     });
-
-  } catch (error) {
-
-    // Handle Axios-specific errors separately
-    if (error.response) {
-      return res.status(error.response.status).json({
-        success: false,
-        message: "Error from upstream service",
-        error: error.response.data
-      });
-    }
-
-    return res.status(500).json({
-      success: false,
-      message: "Error fetching books by title",
-      error: error.message
-    });
-
-  }
 
 });
 
 
-// Get book review
+// Get book review -- using Axios with async/await
 public_users.get('/review/:isbn', async function (req, res) {
 
   try {
-
     const isbn = req.params.isbn;
 
-    // Use Axios to fetch all books from the local server
-    const response = await axios.get('http://localhost:5000/');
-
-    if (!response.data || !response.data.books) {
-      return res.status(500).json({
-        success: false,
-        message: "Invalid response from book service"
-      });
-    }
-
+    // Fetch all books via Axios
+    const response = await axios.get(`${BASE_URL}/`);
     const allBooks = Object.values(response.data.books);
 
-    const resultBook = allBooks.find(
-      (book) => book.isbn === isbn
-    );
+    const resultBook = allBooks.find((book) => book.isbn === isbn);
 
     if (!resultBook) {
       return res.status(404).json({
@@ -286,8 +233,6 @@ public_users.get('/review/:isbn', async function (req, res) {
     });
 
   } catch (error) {
-
-    // Handle Axios-specific errors separately
     if (error.response) {
       return res.status(error.response.status).json({
         success: false,
@@ -295,13 +240,11 @@ public_users.get('/review/:isbn', async function (req, res) {
         error: error.response.data
       });
     }
-
     return res.status(500).json({
       success: false,
       message: "Error fetching reviews",
       error: error.message
     });
-
   }
 
 });
