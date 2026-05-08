@@ -24,66 +24,117 @@ public_users.post("/register", (req,res) => {
 });
 
 // Get the book list available in the shop
-public_users.get('/', async function (req, res) {
-  //Write your code here
-  try{
-    res.send(books);
-  }catch(err){
-    res.send(err);
-  }
+// Using Promise callbacks approach
+public_users.get('/', function (req, res) {
+  axios.get("http://localhost:5000/")
+    .then((response) => {
+      res.status(200).json(response.data);
+    })
+    .catch((error) => {
+      res.status(500).json({ 
+        error: "Failed to fetch books", 
+        message: error.message 
+      });
+    });
 });
 
 // Get book details based on ISBN
-public_users.get('/isbn/:isbn',async function (req, res) {
-  //Write your code here
-  let isbn = req.params.isbn;
-  await axios.get("http://localhost:5000/")
-  .then((result)=>{
-    res.json(result.data[isbn]);
-  })
-  .catch((err)=>{
-    res.send(err);
-  })
-  
- });
+// Using async/await approach
+public_users.get('/isbn/:isbn', async function (req, res) {
+  try {
+    const isbn = req.params.isbn;
+    const response = await axios.get("http://localhost:5000/");
+    const allBooks = response.data;
+    
+    // Search for book with matching ISBN
+    let foundBook = null;
+    for (const bookId in allBooks) {
+      if (allBooks[bookId].isbn === isbn) {
+        foundBook = allBooks[bookId];
+        break;
+      }
+    }
+    
+    if (foundBook) {
+      res.status(200).json(foundBook);
+    } else {
+      res.status(404).json({ error: "Book with ISBN not found" });
+    }
+  } catch (error) {
+    res.status(500).json({ 
+      error: "Failed to fetch book by ISBN", 
+      message: error.message 
+    });
+  }
+});
   
 // Get book details based on author
-public_users.get('/author/:author', async function (req, res) {
-  //Write your code here
-  let authorName = req.params.author;
-  await axios.get("http://localhost:5000/")
-  .then((result)=>{
-    let data = result.data;
-    const booksArr = [];
-    for (const element in data) {
-      booksArr.push(data[element]);
-    }
-    let books = booksArr.filter((el)=>el.author.includes(authorName));
-    if(books.length > 0){
-      res.send(books);
-    }else{
-      res.send("Author does't exists!");
-    }
-  })
-  .catch((err)=>{
-    res.send(err);
-  })
+// Using Promise chaining with advanced error handling
+public_users.get('/author/:author', function (req, res) {
+  const authorName = req.params.author;
+  
+  axios.get("http://localhost:5000/")
+    .then((response) => {
+      const allBooks = response.data;
+      const booksArray = Object.values(allBooks);
+      
+      // Filter books by author (case-insensitive partial match)
+      const matchedBooks = booksArray.filter((book) => 
+        book.author.toLowerCase().includes(authorName.toLowerCase())
+      );
+      
+      if (matchedBooks.length > 0) {
+        res.status(200).json({ 
+          count: matchedBooks.length, 
+          books: matchedBooks 
+        });
+      } else {
+        res.status(404).json({ 
+          error: "No books found for this author", 
+          author: authorName 
+        });
+      }
+    })
+    .catch((error) => {
+      res.status(500).json({ 
+        error: "Failed to fetch books by author", 
+        message: error.message 
+      });
+    });
 });
 
 // Get all books based on title
+// Using async/await with advanced filtering
 public_users.get('/title/:title', async function (req, res) {
-  //Write your code here
-    let title = req.params.title;
-    await axios.get("http://localhost:5000/")
-    .then((data)=>{
-      let books = booksArr.filter((el)=>el.title.includes(title));
-      res.send(books);
-    })
-    .catch(err=>{
-      {
-        res.send("This title doesnot exists! ore there is some error",err);
-      }
-    })
+  try {
+    const title = req.params.title;
+    const response = await axios.get("http://localhost:5000/");
+    
+    const allBooks = response.data;
+    const booksArray = Object.values(allBooks);
+    
+    // Filter books by title (case-insensitive partial match)
+    const matchedBooks = booksArray.filter((book) =>
+      book.title.toLowerCase().includes(title.toLowerCase())
+    );
+    
+    if (matchedBooks.length > 0) {
+      res.status(200).json({ 
+        count: matchedBooks.length, 
+        books: matchedBooks 
+      });
+    } else {
+      res.status(404).json({ 
+        error: "No books found with this title", 
+        searchedTitle: title 
+      });
+    }
+  } catch (error) {
+    res.status(500).json({ 
+      error: "Failed to fetch books by title", 
+      message: error.message 
+    });
+  }
 });
 
 //  Get book review
