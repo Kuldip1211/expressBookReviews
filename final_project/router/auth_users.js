@@ -5,13 +5,13 @@ const regd_users = express.Router();
 
 let users = [];
 
-// ✅ FIX: Implemented isValid — checks if username already exists in users array
+// "" FIX: Implemented isValid — checks if username already exists in users array
 const isValid = (username) => {
   if (!username || typeof username !== "string") return false;
   return users.some((user) => user.username === username);
 };
 
-// ✅ FIX: Implemented authenticatedUser — checks username & password match
+// "" FIX: Implemented authenticatedUser — checks username & password match
 const authenticatedUser = (username, password) => {
   if (!username || !password) return false;
   return users.some(
@@ -24,24 +24,24 @@ regd_users.post("/login", (req, res) => {
   const { username, password } = req.body;
 
   if (!username || !password) {
-    // ✅ FIX: Was `res.send(401)` (wrong — send() doesn't chain .json()); changed to res.status(401)
+    // "" FIX: Was `res.send(401)` (wrong — send() doesn't chain .json()); changed to res.status(401)
     return res.status(401).json({
       success: false,
       message: "Username and password are both required.",
     });
   }
 
-  // ✅ Use authenticatedUser helper instead of inline find
+  // "" Use authenticatedUser helper instead of inline find
   if (!authenticatedUser(username, password)) {
     return res.status(404).json({
-      // ✅ FIX: Corrected typo "sucess" → "success"
+      // "" FIX: Corrected typo "sucess" → "success"
       success: false,
       message: "User not found or incorrect credentials.",
     });
   }
 
   const token = jwt.sign(
-    { username }, // ✅ FIX: Don't include password in the JWT payload — security risk
+    { username }, // "" FIX: Don't include password in the JWT payload — security risk
     "secretKey",  // ⚠️  In production, use process.env.JWT_SECRET
     { expiresIn: "1d" }
   );
@@ -68,7 +68,7 @@ regd_users.post("/register", (req, res) => {
     });
   }
 
-  // ✅ Use isValid to check existence
+  // "" Use isValid to check existence
   if (isValid(username)) {
     return res.status(409).json({
       message: "Username is already registered. Please choose a different one.",
@@ -87,7 +87,7 @@ regd_users.put("/review/:isbn", (req, res) => {
   const isbn = req.params.isbn;
   const review = req.query.review;
 
-  // ✅ FIX: Guard against missing session / unauthenticated access
+  // "" FIX: Guard against missing session / unauthenticated access
   if (!req.session || !req.session.user) {
     return res.status(401).json({
       message: "Unauthorized. Please log in first.",
@@ -113,7 +113,7 @@ regd_users.put("/review/:isbn", (req, res) => {
 
   const book = books[bookKey];
 
-  // ✅ FIX: Ensure reviews array exists on book before using findIndex
+  // "" FIX: Ensure reviews array exists on book before using findIndex
   if (!Array.isArray(book.reviews)) {
     book.reviews = [];
   }
