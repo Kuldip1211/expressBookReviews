@@ -1,143 +1,87 @@
-const express = require('express');
-const jwt = require('jsonwebtoken');
+const express = require("express");
+const jwt = require("jsonwebtoken");
 let books = require("./booksdb.js");
 const regd_users = express.Router();
 
-let users = [];
+let users = [
+  {
+    username: "asad",
+    password: "123",
+  },
+];
 
-// "" FIX: Implemented isValid — checks if username already exists in users array
 const isValid = (username) => {
-  if (!username || typeof username !== "string") return false;
+  //returns boolean
+  //write code to check is the username is valid
   return users.some((user) => user.username === username);
 };
 
-// "" FIX: Implemented authenticatedUser — checks username & password match
 const authenticatedUser = (username, password) => {
-  if (!username || !password) return false;
+  //returns boolean
+  //write code to check if username and password match the one we have in records.
   return users.some(
     (user) => user.username === username && user.password === password
   );
 };
 
-// POST /login
+//only registered users can login
 regd_users.post("/login", (req, res) => {
-  const { username, password } = req.body;
+  //Write your code here
+  let { username, password } = req.body;
 
-  if (!username || !password) {
-    // "" FIX: Was `res.send(401)` (wrong — send() doesn't chain .json()); changed to res.status(401)
-    return res.status(401).json({
-      success: false,
-      message: "Username and password are both required.",
-    });
-  }
-
-  // "" Use authenticatedUser helper instead of inline find
-  if (!authenticatedUser(username, password)) {
-    return res.status(404).json({
-      // "" FIX: Corrected typo "sucess" → "success"
-      success: false,
-      message: "User not found or incorrect credentials.",
-    });
-  }
-
-  const token = jwt.sign(
-    { username }, // "" FIX: Don't include password in the JWT payload — security risk
-    "secretKey",  // ⚠️  In production, use process.env.JWT_SECRET
-    { expiresIn: "1d" }
-  );
-
-  // Store in session
-  req.session.user = {
-    user: username,
-    token: token,
-  };
-
-  return res.status(200).json({
-    message: "Login successful.",
-    token: token,
-  });
-});
-
-// POST /register
-regd_users.post("/register", (req, res) => {
-  const { username, password } = req.body;
-
-  if (!username || !password) {
-    return res.status(400).json({
-      message: "Please provide both username and password.",
-    });
-  }
-
-  // "" Use isValid to check existence
-  if (isValid(username)) {
-    return res.status(409).json({
-      message: "Username is already registered. Please choose a different one.",
-    });
-  }
-
-  users.push({ username, password });
-
-  return res.status(201).json({
-    message: "User successfully registered. Now you can login.",
-  });
-});
-
-// PUT /review/:isbn — Add or update a book review (authenticated users only)
-regd_users.put("/review/:isbn", (req, res) => {
-  const isbn = req.params.isbn;
-  const review = req.query.review;
-
-  // "" FIX: Guard against missing session / unauthenticated access
-  if (!req.session || !req.session.user) {
-    return res.status(401).json({
-      message: "Unauthorized. Please log in first.",
-    });
-  }
-
-  const username = req.session.user.user;
-
-  if (!review) {
-    return res.status(400).json({
-      message: "Review is required as a query parameter (?review=...).",
-    });
-  }
-
-  // Find the book by ISBN
-  const bookKey = Object.keys(books).find((key) => books[key].isbn === isbn);
-
-  if (!bookKey) {
-    return res.status(404).json({
-      message: "Book not found with the given ISBN.",
-    });
-  }
-
-  const book = books[bookKey];
-
-  // "" FIX: Ensure reviews array exists on book before using findIndex
-  if (!Array.isArray(book.reviews)) {
-    book.reviews = [];
-  }
-
-  const existingReviewIndex = book.reviews.findIndex(
-    (r) => r.username === username
-  );
-
-  if (existingReviewIndex !== -1) {
-    // Modify existing review
-    book.reviews[existingReviewIndex].review = review;
-    return res.status(200).json({
-      message: "Review updated successfully.",
-      review: book.reviews[existingReviewIndex],
-    });
+  if (authenticatedUser(username, password)) {
+    console.log("users i authenticated");
+    let accessToken = jwt.sign({ username }, "access", { expiresIn: "1h" });
+    // Save token in session
+    req.session.authorization = { accessToken };
+    return res
+      .status(200)
+      .json({ messge: "Access granted!", token: accessToken });
   } else {
-    // Add new review
-    const newReview = { username, review };
-    book.reviews.push(newReview);
-    return res.status(200).json({
-      message: "Review added successfully.",
-      review: newReview,
-    });
+    return res
+      .status(403)
+      .json({ message: "Wrong Credentials! or users dont exitst" });
   }
+});
+
+const findUserName = (req) => {
+  let token = req.session.authorization.accessToken;
+  let decodeUser;
+  try {
+    decodeUser = jwt.verify(token, "access");
+  } catch (err) {
+    return res.status(403).json({ message: "Invalid or expired token" });
+  }
+  return decodeUser.username;
+   
+};
+// Add a book review
+regd_users.put("/auth/review/:isbn", (req, res) => {
+  //Write your code here
+  let {isbn} = req.params;
+  let review = req.query.q;
+  let userName = findUserName(req);
+  // console.log(isbn,review,userName);
+  if (!books[isbn].reviews) {
+    books[isbn].reviews = { userName: review };
+  }
+  books[isbn].reviews[userName] = review;
+  res.send(books[isbn]);
+
+  return res.status(300).json({ message: "Yet to be implemented", isbn: isbn });
+});
+
+//Delete a book review
+regd_users.delete("/auth/review/:isbn", (req, res) => {
+  //Write your code here
+  let {isbn} = req.params;
+  let userName = findUserName(req);
+  let before = books[isbn].reviews[userName];
+  delete books[isbn].reviews[userName];
+  let after = books[isbn].reviews;
+  res.json({message:`Successfully Delete reviews of ${userName} "`,"Before":before,"After":after});
+
+  return res.status(300).json({ message: "Yet to be implemented", isbn: isbn });
 });
 
 module.exports.authenticated = regd_users;
